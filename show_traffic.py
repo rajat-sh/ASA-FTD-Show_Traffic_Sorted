@@ -89,7 +89,7 @@ def print_selected_columns(data_list, heading):
 
     for row in data_list:
         # Select specific columns: 1, 8, 9, 10, 11, 13 (indexes 0, 7, 8, 9, 10, 12)
-        selected_row = [row[i] for i in [0, 7, 8, 9, 10, 12] if i < len(row) and row[i]]
+        selected_row = [row[i] for i in [0, 7, 8, 13, 14, 12] if i < len(row) and row[i]]
         # Format each column to start at the same screen location
         formatted_row = '     '.join(f"{col:<{column_width}}" for col in selected_row)
         print(formatted_row)
