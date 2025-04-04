@@ -1,139 +1,145 @@
-def process_file_to_list_of_lists(file_path, start_string, end_string):
-    """
-    Reads a file and extracts non-empty lines between two specified strings,
-    treating comma-separated values as separate elements and grouping them
-    into sublists of 19 elements each.
+def process_traffic_blocks(file_path):
+    start_marker = "------ show traffic --------"
+    end_marker = "--------------------------------"
 
-    :param file_path: Path to the file to be read.
-    :param start_string: The string indicating the start of the desired section.
-    :param end_string: The string indicating the end of the desired section.
-    :return: A list of lists, each containing 19 elements.
-    """
-    data = []
-    temp_list = []
+    inside_range = False
+    traffic_blocks = []  # Store unique lists for each block
+    int_traffic_blocks = []  # Lists of every 13th element starting from 0th
+    min_int_traffic_blocks = []  # Lists of every 13th element starting from 7th
+    five_min_int_traffic_blocks = []  # Lists of every 13th element starting from 10th
+    five_min_drop_traffic_blocks = []  # Lists of every 13th element starting from 12th
 
+    # Open the file for reading
     try:
         with open(file_path, 'r') as file:
-            processing = False
+            current_block = []
 
             for line in file:
-                stripped_line = line.strip()  # Remove leading and trailing whitespace
-
-                if start_string in stripped_line:
-                    processing = True
+                # Check for the start marker
+                if start_marker in line:
+                    inside_range = True
+                    current_block = []  # Start a new block
                     continue
 
-                if end_string in stripped_line and processing:
-                    break
+                # Check for the end marker
+                if end_marker in line:
+                    inside_range = False
+                    if current_block and current_block not in traffic_blocks:  # Check for uniqueness
+                        traffic_blocks.append(current_block)
+                        int_block = [current_block[i] for i in range(0, len(current_block), 13)]
+                        min_int_block = [current_block[i] for i in range(7, len(current_block), 13)]
+                        five_min_int_block = [current_block[i] for i in range(10, len(current_block), 13)]
+                        five_min_drop_block = [current_block[i] for i in range(12, len(current_block), 13)]
+                        int_traffic_blocks.append(int_block)
+                        min_int_traffic_blocks.append(min_int_block)
+                        five_min_int_traffic_blocks.append(five_min_int_block)
+                        five_min_drop_traffic_blocks.append(five_min_drop_block)
+                    continue
 
-                if processing and stripped_line:
-                    # Split the line by commas to treat each value as a separate element
-                    elements = stripped_line.split(',')
-                    temp_list.extend(elements)
+                # Process lines within the block
+                if inside_range:
+                    stripped_line = line.strip()
+                    if stripped_line:  # Ignore blank lines
+                        current_block.append(stripped_line)
 
-                    # Once we have 19 elements, add them as a new sublist
-                    while len(temp_list) >= 19:
-                        data.append(temp_list[:19])
-                        temp_list = temp_list[19:]
+        # Process and print each Traffic_block list
+        #for i, int_block in enumerate(int_traffic_blocks, start=1):
+            #print(f"Int_Traffic_block{i}:")
+            #for item in int_block:
+                #print(item)
+            #print()
 
-        return data
+        for i, min_int_block in enumerate(min_int_traffic_blocks, start=1):
+            #print(f"1_Min_Int_Traffic_block{i}:")
+            processed_block = []
+            for item in min_int_block:
+                # Remove specified substrings
+                processed_item = item.replace("1 minute input rate", "").replace("pkts/sec", "").replace("bytes/sec", "").strip()
+                processed_block.append(processed_item)
+                #print(processed_item)
+            min_int_traffic_blocks[i-1] = processed_block
+            #print()
+
+        for i, five_min_int_block in enumerate(five_min_int_traffic_blocks, start=1):
+            #print(f"5_Min_Int_Traffic_block{i}:")
+            processed_block = []
+            for item in five_min_int_block:
+                # Remove specified substrings
+                processed_item = item.replace("5 minute input rate", "").replace("pkts/sec", "").replace("bytes/sec", "").strip()
+                processed_block.append(processed_item)
+                #print(processed_item)
+            five_min_int_traffic_blocks[i-1] = processed_block
+            #print()
+
+        for i, five_min_drop_block in enumerate(five_min_drop_traffic_blocks, start=1):
+            #print(f"5_MinDrop_Int_Traffic_block{i}:")
+            processed_block = []
+            for item in five_min_drop_block:
+                # Remove specified substrings
+                processed_item = item.replace("5 minute drop rate,", "").replace("pkts/sec", "").strip()
+                processed_block.append(processed_item)
+                #print(processed_item)
+            five_min_drop_traffic_blocks[i-1] = processed_block
+            #print()
+
+        # Print formatted columns for each block
+        for i in range(len(traffic_blocks)):
+            print(f"Formatted Output for Traffic_block{i+1}:\n")
+
+            # 1 Minute Packets Per Second
+            interface_names = int_traffic_blocks[i]
+            pps_rates = [int(item.split(",")[0].strip()) if "," in item and item.split(",")[0].strip().isdigit() else 0 for item in min_int_traffic_blocks[i]]
+            sorted_pps_data = sorted(zip(interface_names, pps_rates), key=lambda x: x[1], reverse=True)
+            print(f"{'Interface Name':<30}{'1 Minute Packets Per Second':>30}")
+            for interface, rate in sorted_pps_data:
+                if rate > 0:
+                    print(f"{interface:<30}{rate:>30}")
+            print()
+
+            # 1 Minute Bytes Per Second
+            bps_rates = [int(item.split(",")[1].strip()) if "," in item and item.split(",")[1].strip().isdigit() else 0 for item in min_int_traffic_blocks[i]]
+            sorted_bps_data = sorted(zip(interface_names, bps_rates), key=lambda x: x[1], reverse=True)
+            print(f"{'Interface Name':<30}{'1 Minute Bytes Per Second':>30}")
+            for interface, rate in sorted_bps_data:
+                if rate > 0:
+                    print(f"{interface:<30}{rate:>30}")
+            print()
+
+            # 5 Minute Packets Per Second
+            pps_rates = [int(item.split(",")[0].strip()) if "," in item and item.split(",")[0].strip().isdigit() else 0 for item in five_min_int_traffic_blocks[i]]
+            sorted_pps_data = sorted(zip(interface_names, pps_rates), key=lambda x: x[1], reverse=True)
+            print(f"{'Interface Name':<30}{'5 Minute Packets Per Second':>30}")
+            for interface, rate in sorted_pps_data:
+                if rate > 0:
+                    print(f"{interface:<30}{rate:>30}")
+            print()
+
+            # 5 Minute Bytes Per Second
+            bps_rates = [int(item.split(",")[1].strip()) if "," in item and item.split(",")[1].strip().isdigit() else 0 for item in five_min_int_traffic_blocks[i]]
+            sorted_bps_data = sorted(zip(interface_names, bps_rates), key=lambda x: x[1], reverse=True)
+            print(f"{'Interface Name':<30}{'5 Minute Bytes Per Second':>30}")
+            for interface, rate in sorted_bps_data:
+                if rate > 0:
+                    print(f"{interface:<30}{rate:>30}")
+            print()
+
+            # 5 Minute Drop Rate Packets Per Second
+            drop_rates = [int(item.strip()) if item.strip().isdigit() else 0 for item in five_min_drop_traffic_blocks[i]]
+            sorted_drop_data = sorted(zip(interface_names, drop_rates), key=lambda x: x[1], reverse=True)
+            print(f"{'Interface Name':<30}{'5 Minute Drop Rate Packets Per Second':>30}")
+            for interface, rate in sorted_drop_data:
+                if rate > 0:
+                    print(f"{interface:<30}{rate:>30}")
+            print()
 
     except FileNotFoundError:
-        print(f"Error: The file at {file_path} was not found.")
-        return []
+        print(f"Error: The file '{file_path}' was not found.")
     except Exception as e:
         print(f"An error occurred: {e}")
-        return []
 
-def modify_elements(data_list):
-    """
-    Iterates through each element of the list and removes everything up to and including "rate",
-    as well as the strings "pkts/sec" and "bytes/sec".
-
-    :param data_list: The list of lists to be modified.
-    :return: A modified list of lists.
-    """
-    modified_data = []
-    for row in data_list:
-        modified_row = []
-        for item in row:
-            # Remove everything up to and including "rate"
-            if 'rate' in item:
-                item = item.split('rate', 1)[-1]
-            # Remove the strings "pkts/sec" and "bytes/sec"
-            item = item.replace('pkts/sec', '').replace('bytes/sec', '')
-            modified_row.append(item.strip())
-        modified_data.append(modified_row)
-    return modified_data
-
-def print_selected_columns(data_list, heading):
-    """
-    Prints a list of lists as a table with each sublist representing a row.
-    Excludes columns 2 to 7 and blank columns. Formats each column to start
-    at the same screen location with at least 5 spaces between columns.
-    Adds two-line spaces between rows. Prints specified column headings.
-
-    :param data_list: The list of lists to be printed.
-    :param heading: The heading to print before the data.
-    """
-    column_width = 30  # Set a fixed width for each column to ensure alignment
-    headings = ["NAME", "1 min Pps", "1 min Bps", "5 min Pps", "5 min Bps", "1 min drop Pps"]
-
-    # Print the main heading
-    print(heading)
-    print("\n")  # Two-line space after the main heading
-
-    # Print the column headings
-    print('     '.join(f"{heading:<{column_width}}" for heading in headings))
-    #print("\n")  # Two-line space after the header
-
-    for row in data_list:
-        # Select specific columns: 1, 8, 9, 10, 11, 13 (indexes 0, 7, 8, 9, 10, 12)
-        selected_row = [row[i] for i in [0, 7, 8, 13, 14, 12] if i < len(row) and row[i]]
-        # Format each column to start at the same screen location
-        formatted_row = '     '.join(f"{col:<{column_width}}" for col in selected_row)
-        print(formatted_row)
-        #print("\n")  # Two-line space between rows
-
-def sort_by_column(data_list, column_index):
-    """
-    Sorts the data list by the specified column index in decreasing order.
-
-    :param data_list: The list of lists to be sorted.
-    :param column_index: The index of the column to sort by (1-based index).
-    :return: A sorted list of lists in decreasing order.
-    """
-    # Adjust column index for zero-based indexing and ensure it is within valid range
-    zero_based_index = column_index - 1
-    return sorted(data_list, key=lambda x: float(x[zero_based_index]) if x[zero_based_index] else float('-inf'), reverse=True)
-
-# Main function
 def main():
-    file_path = input("Enter the filename or path: ")
-    start_string = 'show traffic'
-    end_string = '------------'
-
-    data = process_file_to_list_of_lists(file_path, start_string, end_string)
-
-    # Modify each element to remove specified substrings
-    modified_data = modify_elements(data)
-
-    # Print the original list with formatted columns
-    print_selected_columns(modified_data, "INPUT DATA")
-
-    # Sort and print the list by different columns in decreasing order
-    sort_columns = [8, 9, 10, 11, 13]  # Column indexes to sort by (1-based)
-    sort_headings = [
-        "\n*****SORTED BY 1 min Pps*****",
-        "\n*****SORTED BY 1 min Bps*****",
-        "\n*****SORTED BY 5 min Pps*****",
-        "\n*****SORTED BY 5 min Bps*****",
-        "\n*****SORTED BY 1 min DROP Pps*****"
-    ]
-
-    for col_index, heading in zip(sort_columns, sort_headings):
-        sorted_data = sort_by_column(modified_data, col_index)
-        print_selected_columns(sorted_data, heading)
+    file_path = input("Please enter the path to the file: ")
+    process_traffic_blocks(file_path)
 
 if __name__ == "__main__":
     main()
