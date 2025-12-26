@@ -1,79 +1,97 @@
-# Cisco ASA/FTD Interface Traffic Analyzer
+# README — `show_traffic.py`
 
-This Python script is a specialized parsing utility designed to extract, analyze, and format traffic statistics from Cisco ASA or Firepower (FTD) diagnostic logs. It specifically targets the output of the `show traffic` command to identify high-load interfaces and packet drop rates.
+## Overview
+`show_traffic.py` parses a text file containing repeated **Cisco “show traffic”** sections and produces a per-block report that includes:
 
----
+- 1-minute input rate (packets/sec and bytes/sec) per interface
+- 5-minute input rate (packets/sec and bytes/sec) per interface
+- 5-minute drop rate (packets/sec) per interface
+- **Average packet size** (bytes/packet) per interface for:
+  - 1-minute window (bytes/sec ÷ pkts/sec)
+  - 5-minute window (bytes/sec ÷ pkts/sec)
 
-## 🔍 Overview
+For each “Traffic_block”, the script sorts each table **in descending order** by the metric being printed.
 
-Cisco diagnostic files often contain periodic snapshots of interface traffic. Manually comparing these metrics across dozens of interfaces is difficult. This script automates the process by:
+## Input File Format Expectations
+The script looks for “show traffic” blocks delimited by these marker lines:
 
-1. **Extracting** data blocks between `------ show traffic --------` and the end-of-block markers.
-2. **Parsing** specific metrics using fixed-offset indexing (every 13th line) to ensure data alignment.
-3. **Ranking** interfaces by traffic volume (PPS/BPS) and drop rates to highlight the most active or problematic segments.
+- Start marker: `------ show traffic --------`
+- End marker: `--------------------------------`
 
----
+All non-empty lines between these markers are collected into a block.
 
-## ✨ Features
+### Important structural assumption
+Within each block, the script assumes the data repeats in **groups of 13 lines per interface**, and it extracts specific lines by index:
 
-* **Multi-Metric Extraction:** Captures and isolates:
-* **1-Minute Input Rate:** Packets per second (PPS) and Bytes per second (BPS).
-* **5-Minute Input Rate:** PPS and BPS for long-term trend analysis.
-* **5-Minute Drop Rate:** Identifies interfaces actively discarding traffic.
+- Interface name: every 13th line starting at index `0`
+- **1-minute input rate**: every 13th line starting at index `7`
+- **5-minute input rate**: every 13th line starting at index `10`
+- **5-minute drop rate**: every 13th line starting at index `12`
 
+For correct results, your captured output should match this structure.
 
-* **Automatic Sorting:** Generates formatted tables where interfaces are sorted by volume (highest rate first).
-* **Data Cleaning:** Automatically strips Cisco-specific strings like `pkts/sec` and `bytes/sec` to perform mathematical sorting and clean reporting.
-* **Unique Block Detection:** Prevents duplicate processing if the same traffic block appears multiple times in the source file.
+## What the Script Prints
+For each traffic block found, the script prints:
 
----
+1. **1 Minute Packets Per Second** (sorted desc)
+2. **1 Minute Bytes Per Second** (sorted desc)
+3. **5 Minute Packets Per Second** (sorted desc)
+4. **5 Minute Bytes Per Second** (sorted desc)
+5. **5 Minute Drop Rate Packets Per Second** (sorted desc)
+6. **1 Minute Avg Packet Size (Bytes/Pkt)** (sorted desc)
+7. **5 Minute Avg Packet Size (Bytes/Pkt)** (sorted desc)
 
-## 🚀 Usage
+Rows with a computed metric of `0` are generally skipped for rate/drop tables.  
+For average packet size tables, interfaces are included only when both packets/sec and bytes/sec are > 0.
 
-1. **Run the script:**
-python traffic_analyzer.py
+## Average Packet Size Calculation
+Average packet size is computed as:
 
+- **1-minute avg bytes/pkt** = `(1-minute bytes/sec) / (1-minute pkts/sec)`
+- **5-minute avg bytes/pkt** = `(5-minute bytes/sec) / (5-minute pkts/sec)`
 
+The output is printed with two decimal places.
 
+## Requirements
+- Python 3.x
+- No external libraries required
 
-2. **Provide the Input File:** Enter the path to your log file (e.g., `show_tech_output.txt`).
-3. **Review Formatted Tables:** The script will output several tables for each identified traffic block, focusing on different metrics.
+## Usage
+Run the script and provide the path to the file containing “show traffic” output when prompted:
 
----
+```bash
+python3 show_traffic.py
+```
 
-## 📖 Data Extraction Logic
+Example prompt interaction:
 
-The script uses a strict structural logic based on the standard output of the Cisco `show traffic` command:
+```text
+Please enter the path to the file: /path/to/show_traffic_output.txt
+```
 
-* **Interface Names:** Located at index `0` of the repeating 13-line pattern.
-* **1-Min Rates:** Located at index `7`.
-* **5-Min Rates:** Located at index `10`.
-* **5-Min Drop Rates:** Located at index `12`.
-
-By jumping 13 lines at a time, the script effectively maps the vertical CLI output into organized data lists for comparison.
-
----
-
-## 📋 Example Output
-
+## Example Output (abridged)
 ```text
 Formatted Output for Traffic_block1:
 
-Interface Name                1 Minute Packets Per Second
-outside                                             15400
-inside                                               8200
-dmz                                                   150
+Interface Name                   1 Minute Packets Per Second
+inside_VR_MNG:                                        646446
+INET:                                                   2754
 
-Interface Name                5 Minute Drop Rate Packets Per Second
-outside                                                12
+...
 
+Interface Name        1 Minute Avg Packet Size (Bytes/Pkt)
+INET:                                     299.42
+inside_VR_MNG:                              52.33
+...
 ```
 
----
+## Notes / Troubleshooting
+- **No output / missing interfaces:** Ensure your input file contains the exact start/end marker lines and that blocks contain the expected 13-line repeating structure.
+- **Rates show as 0:** The parser uses basic numeric checks (`str.isdigit()`), so unexpected formatting (extra text, commas in numbers, etc.) can cause values to be treated as invalid.
+- **Duplicate blocks:** The script attempts to keep only unique blocks (exact line-for-line match) before processing.
 
-## 🛠 Prerequisites
-
-* **Python 3.x**
-* No external libraries are required (uses standard library `os` and `sys` logic).
-
-This script is an excellent addition to a network engineer's toolkit, particularly when investigating **oversubscribed interfaces** or **DDoS conditions** on Cisco security appliances.
+## Customization Ideas
+If you want enhancements, common next steps include:
+- Printing a **combined table** per interface with both 1-min and 5-min avg packet size in one row
+- Supporting numbers with commas (e.g., `33,824,818`)
+- Making the “13 lines per interface” assumption configurable or auto-detected
